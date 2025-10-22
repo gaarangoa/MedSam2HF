@@ -1,0 +1,13 @@
+.ipynb_checkpoints
+__pycache__/
+*.pyc
+.env
+.vscode/
+.DS_Store
+code/
+data/
+models/
+outputs/
+logs/  
+environment/
+.jupyter/
