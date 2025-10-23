@@ -83,26 +83,28 @@ class MedSam2ForSegmentation(torch.nn.Module):
     """
 
     config_filename = "model_config.json"
+    default_model_config_name = "configs/sam2.1_hiera_t512.yaml"
 
     def __init__(
         self,
         *,
-        model_cfg: Union[str, Path],
         checkpoint_path: Union[str, Path],
+        model_config_name: Optional[Union[str, Path]] = None,
         device: str = "cuda",
         predict_dtype: str = "bfloat16",
         postprocess_largest_cc: bool = True,
     ) -> None:
         super().__init__()
-        self.model_cfg = Path(model_cfg)
         self.checkpoint_path = Path(checkpoint_path)
+        resolved_config_name = model_config_name or self.default_model_config_name
+        self.model_config_name = str(resolved_config_name)
         requested_device = torch.device(device if device else "cpu")
         if requested_device.type == "cuda" and not torch.cuda.is_available():
             requested_device = torch.device("cpu")
         self.device = requested_device
         self.predict_dtype = _resolve_dtype(predict_dtype)
         self.postprocess_largest_cc = postprocess_largest_cc
-        self.predictor = build_sam2_video_predictor_npz(str(self.model_cfg), str(self.checkpoint_path))
+        self.predictor = build_sam2_video_predictor_npz(self.model_config_name, str(self.checkpoint_path))
         self.pretrained_model_name_or_path: Optional[Union[str, Path]] = None
 
     @classmethod
@@ -133,17 +135,7 @@ class MedSam2ForSegmentation(torch.nn.Module):
                 base_path = repo_path if repo_path.is_dir() else repo_path.parent
         config.update(kwargs)
 
-        model_cfg_value = config.pop("model_cfg", None)
-        model_cfg_filename = config.pop("model_cfg_filename", None)
-        model_cfg_repo_id = config.pop("model_cfg_repo_id", None)
-        config["model_cfg"] = cls._resolve_model_cfg(
-            model_cfg_value,
-            model_cfg_filename,
-            pretrained_model_name_or_path,
-            base_path,
-            model_cfg_repo_id,
-            local_files_only=local_files_only,
-        )
+        model_config_name = config.pop("model_config_name", None)
         checkpoint_path = config.pop("checkpoint_path", None)
         if checkpoint_path is not None:
             config["checkpoint_path"] = cls._resolve_checkpoint_path(
@@ -165,53 +157,12 @@ class MedSam2ForSegmentation(torch.nn.Module):
                 local_files_only=local_files_only,
             )
 
+        if model_config_name is not None:
+            config["model_config_name"] = model_config_name
+
         model = cls(**config)
         model.pretrained_model_name_or_path = pretrained_model_name_or_path
         return model
-
-    @staticmethod
-    def _resolve_model_cfg(
-        model_cfg: Optional[Union[str, Path]],
-        model_cfg_filename: Optional[str],
-        repo_or_path: Optional[Union[str, Path]],
-        base_path: Optional[Path],
-        model_cfg_repo_id: Optional[str],
-        local_files_only: bool,
-    ) -> Path:
-        candidates = []
-        if model_cfg is not None:
-            candidates.append(Path(model_cfg))
-        if model_cfg_filename is not None:
-            candidates.append(Path(model_cfg_filename))
-
-        for candidate in candidates:
-            if candidate.is_file():
-                return candidate
-            if base_path is not None:
-                in_base = (base_path / candidate).resolve()
-                if in_base.exists():
-                    return in_base
-                in_parent = (base_path.parent / candidate).resolve()
-                if in_parent.exists():
-                    return in_parent
-
-        repo_id = model_cfg_repo_id or (str(repo_or_path) if repo_or_path else None)
-        filename = None
-        if candidates:
-            filename = candidates[0].name
-        if filename is not None and repo_id is not None:
-            resolved = _maybe_hf_download(
-                repo_id,
-                filename,
-                local_files_only=local_files_only,
-            )
-            if resolved is not None:
-                return resolved
-
-        raise FileNotFoundError(
-            "Model configuration file could not be resolved. Provide a valid 'model_cfg' path or set "
-            "'model_cfg_filename' with an accessible Hugging Face repo."
-        )
 
     @staticmethod
     def _resolve_checkpoint_path(

@@ -1,9 +1,7 @@
 {
-  "model_cfg": null,
-  "model_cfg_filename": "sam2.1_hiera_t512.yaml",
-  "model_cfg_repo_id": "wanglab/MedSAM2",
+  "model_config_name": "configs/sam2.1_hiera_t512.yaml",
   "checkpoint_path": null,
-  "checkpoint_filename": "MedSAM2_CTLesion.pt",
+  "checkpoint_filename": "MedSAM2_latest.pt",
   "checkpoint_repo_id": "wanglab/MedSAM2",
   "predict_dtype": "bfloat16",
   "device": "cuda",
